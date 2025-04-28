@@ -1,0 +1,30 @@
+GET https://localhost:8000/api/tasks/
+###
+
+GET https://localhost:8000/api/tasks/1
+###
+
+POST  https://localhost:8000/api/tasks/
+Content-Type: application/json
+
+{
+  "title": "cuisine",
+  "description": "Description 0"
+}
+###
+
+PATCH https://localhost:8000/api/tasks/1
+Content-Type: application/json
+
+{
+  "title": "cuisine roumaine",
+  "description": "Description 0"
+}
+###
+DELETE https://localhost:8000/api/tasks/13
+
+
+
+
+
+
