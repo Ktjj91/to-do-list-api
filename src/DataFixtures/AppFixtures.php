@@ -33,8 +33,6 @@ class AppFixtures extends Fixture
             $task->setowner($user);
             $manager->persist($task);
         }
-
-
         $manager->flush();
     }
 }
