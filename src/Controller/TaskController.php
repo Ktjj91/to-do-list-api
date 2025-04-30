@@ -9,8 +9,10 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Requirement\Requirement;
 
 #[Route('/api/tasks')]
 final class TaskController extends AbstractController
@@ -23,17 +25,19 @@ final class TaskController extends AbstractController
     #[Route('/', methods: ['GET'])]
     public function getAllTasks(): JsonResponse
     {
-        $tasks = $this->taskRepository->findAll();
+        $user = $this->getUser();
+        if(!$user){
+            return  $this->json(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $tasks = $this->taskRepository->findALlTasksByUser($user);
         return $this->json(['data' => $tasks],context: ['groups' => 'task.read']);
     }
 
-    #[Route('/{id}', methods: ['GET'])]
+    #[Route('/{id}', requirements: [Requirement::DIGITS], methods: ['GET'])]
     public function getTask(int $id): JsonResponse
     {
-        $task = $this->taskRepository->find($id);
-        if(!$task){
-            throw new NotFoundHttpException();
-        }
+        $task = $this->taskRepository->getOneByUserAndIdOrFail($this->getUser() ,$id);
         return $this->json(['data' => $task],context: ['groups' => 'task.read']);
     }
 
@@ -47,8 +51,10 @@ final class TaskController extends AbstractController
     )
     : JsonResponse
     {
+        $user = $this->getUser();
         $task->setIsDone(false);
         $task->setDueDate(new \DateTime());
+        $task->setOwner($user);
         $this->entityManager->persist($task);
         $this->entityManager->flush();
 
@@ -63,10 +69,16 @@ final class TaskController extends AbstractController
                                Task $incoming
     ): JsonResponse
     {
+
+        $user = $this->getUser();
+
+
         $existingTask = $this->taskRepository->find($id);
         if (!$existingTask) {
             throw new NotFoundHttpException("Task #{$id} not found.");
-
+        }
+        if($user->getId() !== $existingTask->getOwner()->getId()){
+            throw new AccessDeniedHttpException("You don't own this task.");
         }
         if (null !== $incoming->getTitle()) {
             $existingTask->setTitle($incoming->getTitle());
@@ -82,7 +94,7 @@ final class TaskController extends AbstractController
         }
         $this->entityManager->flush();
 
-        return $this->json([], Response::HTTP_NO_CONTENT, [], ['groups' => 'task.read']
+        return $this->json('', Response::HTTP_NO_CONTENT, [], ['groups' => 'task.read']
         );
     }
 
@@ -90,14 +102,19 @@ final class TaskController extends AbstractController
     public function deleteTask(int $id): JsonResponse {
 
         $task = $this->taskRepository->find($id);
+        $user = $this->getUser();
 
         if(!$task){
             throw new NotFoundHttpException("Task #{$id} not found.");
         }
 
+        if($user->getId() !== $task->getOwner()->getId()){
+            throw new AccessDeniedHttpException("You don't own this task.");
+        }
+
         $this->entityManager->remove($task);
         $this->entityManager->flush();
 
-        return $this->json([], Response::HTTP_NO_CONTENT, [], ['groups' => 'task.read']);
+        return $this->json('', Response::HTTP_NO_CONTENT, [], ['groups' => 'task.read']);
     }
 }
