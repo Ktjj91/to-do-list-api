@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Dto\TaskUpdateDto;
 use App\Repository\TaskRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -99,4 +100,20 @@ class Task
 
         return $this;
     }
+
+     public function updateFromDto(TaskUpdateDto $dto): void
+ {
+     if (null !== $dto->getTitle()) {
+         $this->setTitle($dto->getTitle());
+     }
+     if (null !== $dto->getDescription()) {
+         $this->setDescription($dto->getDescription());
+     }
+     if (null !== $dto->getDueDate()) {
+         $this->setDueDate($dto->getDueDate());
+     }
+     if (null !== $dto->getIsDone()) {
+         $this->setIsDone($dto->getIsDone());
+     }
+ }
 }

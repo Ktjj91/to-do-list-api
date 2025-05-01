@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Dto\TaskUpdateDto;
 use App\Entity\Task;
 use App\Repository\TaskRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -12,6 +13,7 @@ use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Routing\Requirement\Requirement;
 
 #[Route('/api/tasks')]
@@ -34,7 +36,7 @@ final class TaskController extends AbstractController
         return $this->json(['data' => $tasks],context: ['groups' => 'task.read']);
     }
 
-    #[Route('/{id}', requirements: [Requirement::DIGITS], methods: ['GET'])]
+    #[Route('/{id}', name:'app_task_gettask', requirements: ['id' =>Requirement::DIGITS], methods: ['GET'])]
     public function getTask(int $id): JsonResponse
     {
         $task = $this->taskRepository->getOneByUserAndIdOrFail($this->getUser() ,$id);
@@ -44,6 +46,7 @@ final class TaskController extends AbstractController
     #[Route('/', methods: ['POST'])]
     public function createTask
     (
+        UrlGeneratorInterface $urlGenerator,
         #[MapRequestPayload(
             serializationContext: ['groups' => 'task.create'],
         )]
@@ -58,44 +61,29 @@ final class TaskController extends AbstractController
         $this->entityManager->persist($task);
         $this->entityManager->flush();
 
-        return $this->json([],Response::HTTP_CREATED,context: ['groups' => 'task.read']);
+        $location = $urlGenerator->generate(
+            'app_task_gettask',
+            ['id' => $task->getId()])
+        ;
+
+        return $this->json(
+            '',
+            Response::HTTP_CREATED,
+            headers: ['Location' => $location],
+            context: ['groups' => 'task.read']
+        );
     }
 
     #[Route('/{id}', methods: ['PATCH'])]
-    public function updateTask(int $id,
-                               #[MapRequestPayload(
-                                   serializationContext: ['groups' => 'task.update'],
-                               )]
-                               Task $incoming
+    public function updateTask(
+        Task $task,
+        #[MapRequestPayload()]
+        TaskUpdateDto $taskUpdateDto
     ): JsonResponse
     {
-
-        $user = $this->getUser();
-
-
-        $existingTask = $this->taskRepository->find($id);
-        if (!$existingTask) {
-            throw new NotFoundHttpException("Task #{$id} not found.");
-        }
-        if($user->getId() !== $existingTask->getOwner()->getId()){
-            throw new AccessDeniedHttpException("You don't own this task.");
-        }
-        if (null !== $incoming->getTitle()) {
-            $existingTask->setTitle($incoming->getTitle());
-        }
-        if (null !== $incoming->getDescription()) {
-            $existingTask->setDescription($incoming->getDescription());
-        }
-        if (null !== $incoming->getDueDate()) {
-            $existingTask->setDueDate($incoming->getDueDate());
-        }
-        if (null !== $incoming->isDone()) {
-            $existingTask->setIsDone($incoming->isDone());
-        }
+        $task->updateFromDto($taskUpdateDto);
         $this->entityManager->flush();
-
-        return $this->json('', Response::HTTP_NO_CONTENT, [], ['groups' => 'task.read']
-        );
+        return $this->json('', Response::HTTP_NO_CONTENT);
     }
 
     #[Route('/{id}', methods: ['DELETE'])]
